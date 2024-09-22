@@ -1,0 +1,1 @@
+/Users/7511036v/Downloads/RASM/rasm.macos ./hector.asm -sp -eo -sv -sl -v -o hector
