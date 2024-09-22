@@ -1,7 +1,7 @@
 from PIL import Image
 import os
 
-img = Image.open('/Users/7511036V/Documents/Perso/ASM/HECTOR/ecran-jeu-hector-v02.png')
+img = Image.open('/Users/7511036V/Documents/Perso/ASM/HECTOR/NOTME/ecran-jeu-hector-v02.png')
 
 def get_color(val, x, y):
     if val == (0, 0, 0, 255): # noir
@@ -22,7 +22,7 @@ def get_color(val, x, y):
 # 3: white
 #palette = [0, 3, 4, 7]
 
-with open("/Users/7511036V/Documents/Perso/ASM/HECTOR/token.asm", "wb") as o:
+with open("/Users/7511036V/Documents/Perso/ASM/HECTOR/NOTME/token.asm", "wb") as o:
 
     db = []
     print(img.height)
