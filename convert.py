@@ -1,7 +1,7 @@
 from PIL import Image
 import os
 
-img = Image.open('/Users/7511036V/Documents/Perso/ASM/HECTOR/NOTME/ecran-jeu-hector-v02.png')
+img = Image.open('/Users/7511036V/Documents/Perso/ASM/HECTOR/NOTME/ecran-jeu-hector-fin-v00.png')
 
 def get_color(val, x, y):
     if val == (0, 0, 0, 255): # noir
