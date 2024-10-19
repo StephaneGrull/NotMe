@@ -1,0 +1,1 @@
+/Users/7511036v/Downloads/RASM/rasm.macos ./NotMe!_V2.asm -sp -eo -sv -sl -v -o NotMe!_V2
