@@ -363,6 +363,8 @@ Exit:
         LD (activePlayer), A
         LD A, 0
         LD (detectedWord), A
+        LD (player1Leg), A
+        LD (player2Leg), A
         LD HL, 0x21C3
         LD (tempAdressWord), HL
         LD HL, 0xE001
@@ -755,8 +757,8 @@ DrawRightLeg:
         DJNZ drawRightLegLoop        ; Loop
         ; At the end of loop
         LD IX, penduPlayerRightLeg   ; Load in IX the adress of penduPlayerLeg
-        LD (IX+4), 0x73         ; Set the Y value to initial
-        LD (IX+5), 0x50         ; Set the X value to initial
+        LD (IX+4), 115         ; Set the Y value to initial
+        LD (IX+5), 84         ; Set the X value to initial
         LD A, 1                 ; Set A to 1 -> return of function
         POP BC                  ; POP BC for clean stack
         RET
