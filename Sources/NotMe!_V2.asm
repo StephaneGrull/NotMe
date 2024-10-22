@@ -182,7 +182,6 @@ main:   ; If key is pressed, next
                         LD (IX), 0
                         ;Test si 1 joueur
                         LD A, (playersNumber)
-                        debugChangeName:
                         CP 0x31
                         CALL Z, changeNamePlayer2
                         JR Z, wordChoose
@@ -309,11 +308,8 @@ main:   ; If key is pressed, next
         CP 0x20                         ; If key is SPACE
         JR Z, exit                      ; Exit game
         POP AF
-        PUSH AF
-        CALL PrintLetter            
-        POP AF
-        CALL ShowLettersPlayerChoice        ; Print letter if letter is in word or decrease PlayerScore if letter is not in word
-        CALL ShowLettersPlayer
+        CALL ShowLettersPlayerChoice        ; Detect if letter is in word and show it if so 
+        CALL ShowLettersPlayer              ; Draw letter in the right screen (in white if not in word or green if so)
         ; Detect if player letter was in word
         CALL LetterWasInWord
         CALL PlayerLost                     ; The routine LetterWasInWord return 0 (player loose) or 1 (player not loose) in reg A
@@ -322,10 +318,16 @@ main:   ; If key is pressed, next
         CALL PlayerWin
         CP 0
         JR Z, mainloopNext
-        ;debug:
+        ; Start : If one player in game goto mainLoopNext
         LD A, (playersNumber)
         CP 0x31
         JR Z,  mainloopNext
+        ; End
+        ; Start : If letter choosen was in word, no change player
+        LD A, (detectedWordTemp)
+        CP 1
+        JR Z,  mainloopNext
+        ; End
         CALL ChangeTokenPlayer              ; Change token to another player
         CALL ChangeActivePlayer             ; Change active player
         mainloopNext: 
@@ -340,7 +342,7 @@ Exit:
     chooseYesorNoLoop:
             CALL KEY        ; Test if a key is pressed
             JR C, chooseYesorNoLoop ; If no, goto start loop
-    debugjaune:                 ; If yes
+        ; If a key is pressed
         CP 0x4F                 ; Test key "O"
         JP Z, suite            ; If "o" goto "ExitOK"
         CP 0x6F                 ; Test key "O"
@@ -470,17 +472,6 @@ DetectLetterWord:
         RET Z
         CP C
     RET
-PrintLetter:            ; Letter is in A
-    LD C, 2             ; Load pen color
-    CALL CHRCOL         ; Text color = 2
-    LD C,A                              ; Put A (CHR value) to C (param)
-    LD DE, (tempPrintLetter)            ; Destination Adress
-    CALL PUTCHR                         ; Display CHR in screen (1 or 2) 
-    LD A, E
-    ADD A, 0xA
-    LD E, A
-    LD (tempPrintLetter), DE
-    RET
 
 ShowLettersPlayerChoice:            ; Draw the letter instead of the dash of the word 
     LD IX, (tempAdressWord)         ; Load IX adress of the word
@@ -586,6 +577,9 @@ ChangeTokenPlayer:
     ;endChangeToken:
         RET
 LetterWasInWord:
+    LD A, (detectedWord)
+    LD (detectedWordTemp), A
+
     LD A, (detectedWord)
     CP 0
     JR Z, noLetterInWord
@@ -853,16 +847,13 @@ ShowWordifLostOrWin:
 ;;;  DATA                                   ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ORG 6000h
-xWord:
-            db 0x0
-colors_title:       ; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
-    db 0x0, 0x03, 0x04, 0x07, 0x0
-colors_pre_game:    ; 0=black(0)(00), 7=white(7)(01), 6=cyan(6)(10), 2=green(2)(11), 4=half light = false
-    db 0x0, 0x07, 0x06, 0x02, 0x0
-colors_games:
-    db 0x0, 0x04, 0x07, 0x02, 0x0
-colors_end:
-    db 0x0, 0x01, 0x02, 0x04, 0x0
+xWord:              db 0x0
+; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
+colors_title:       db 0x0, 0x03, 0x04, 0x07, 0x0
+; 0=black(0)(00), 7=white(7)(01), 6=cyan(6)(10), 2=green(2)(11), 4=half light = false
+colors_pre_game:    db 0x0, 0x07, 0x06, 0x02, 0x0
+colors_games:       db 0x0, 0x04, 0x07, 0x02, 0x0
+colors_end:         db 0x0, 0x01, 0x02, 0x04, 0x0
 
 histoire:
     h01:    db "Annee 1453, les temps sont durs.",0
@@ -879,19 +870,15 @@ histoire:
     h40:    db "la bonne r", E_AIGU, "ponse aura la vie sauve.",0
     h45:    db "Bonne chance,",0
     h50:    db "telle est la vie en 1453.",0
-myRandomNumber:
-            db 0x0
-playersNumber:
-            db 0x0
-player1Score:
-            db 0x36
-player2Score:
-            db 0x36
-player1OffsetPendu:
-            dw 0x0
+myRandomNumber:         db 0x0
+playersNumber:          db 0x0
+player1Score:           db 0x36
+player2Score:           db 0x36
+player1OffsetPendu:     dw 0x0
 player2OffsetPendu:     dw 0x0
 activePlayer:           db 0x01
 detectedWord:           db 0x0
+detectedWordTemp:       db 0x0
 tempAdressWord:         dw 0x21C3
 tempPrintLetter:        dw 0x0
 adressLetterChoice:     dw 0xE001
@@ -946,26 +933,17 @@ penduPlayer1BrasDroite:
             db 0, 5, 20, 2, 80, 60 
 penduPlayer1LeftLeg:
             db  0, 30, 5, 2, 110, 74
-penduPlayer1RightLeg:
-            db  0, 30, 5, 2, 110, 87
-penduPlayer
-Leg:
-            db  1, 10, 10, 2, 110, 74
-tokenMaskPlayer:
-            db 10, 10, 0, 155, 47
-backgroundText01: db 20, 150, 2, 194, 38
-backgroundText02: db 20, 150, 1, 140, 38
-WordTiret:
-            db 0xFF, 0xFF
-timedelay dw FFFFh
-tokenSprite:
-            db 0x50, 0x5, 0xf4, 0x1f, 0x7d, 0x7d, 0x5d, 0x75, 0x5d, 0x75, 0x7d, 0x7d, 0xf4, 0x1f, 0x50, 0x5
-debugchr1:
-            db 8, 8, 3, 1, 1 
-debugchr2:
-            db 8, 8, 3, 8, 8
-randData db 100
-
+penduPlayer1RightLeg:   db  0, 30, 5, 2, 110, 87
+penduPlayerleg:         db  1, 10, 10, 2, 110, 74
+tokenMaskPlayer:        db 10, 10, 0, 155, 47
+backgroundText01:       db 20, 150, 2, 194, 38
+backgroundText02:       db 20, 150, 1, 140, 38
+WordTiret:              db 0xFF, 0xFF
+timedelay:              dw FFFFh
+tokenSprite:            db 0x50, 0x5, 0xf4, 0x1f, 0x7d, 0x7d, 0x5d, 0x75, 0x5d, 0x75, 0x7d, 0x7d, 0xf4, 0x1f, 0x50, 0x5
+debugchr1:              db 8, 8, 3, 1, 1 
+debugchr2:              db 8, 8, 3, 8, 8
+randData:               db 100
 splashScreen:
     INCLUDE "Data/splashscreen.asm"
 ecranFin01:

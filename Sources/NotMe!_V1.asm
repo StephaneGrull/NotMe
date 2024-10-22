@@ -52,6 +52,7 @@ gameScreenTitle:
     gameScreenTitleKeyDetection:            ; Waiting to press a key
         CALL KEY                            ; Test if a key is pressed
         JR C, gameScreenTitlekeyDetection   ; Loop if key not pressed
+    ;JP main
 preMain:                        ; Load first screen and history
     LD BC, colors_pre_game      ; 0=black(0)(00), 1=white(7)(01), 2=cyan(6)(10), 3=green(2)(11), 4=half light = false
     CALL SETCOL                 ; Set palet colors (4 colors)
@@ -182,6 +183,7 @@ main:   ; If key is pressed, next
                         LD (IX), 0
                         ;Test si 1 joueur
                         LD A, (playersNumber)
+                        debugChangeName:
                         CP 0x31
                         CALL Z, changeNamePlayer2
                         JR Z, wordChoose
@@ -308,8 +310,11 @@ main:   ; If key is pressed, next
         CP 0x20                         ; If key is SPACE
         JR Z, exit                      ; Exit game
         POP AF
-        CALL ShowLettersPlayerChoice        ; Detect if letter is in word and show it if so 
-        CALL ShowLettersPlayer              ; Draw letter in the right screen (in white if not in word or green if so)
+        PUSH AF
+        CALL PrintLetter            
+        POP AF
+        CALL ShowLettersPlayerChoice        ; Print letter if letter is in word or decrease PlayerScore if letter is not in word
+        CALL ShowLettersPlayer
         ; Detect if player letter was in word
         CALL LetterWasInWord
         CALL PlayerLost                     ; The routine LetterWasInWord return 0 (player loose) or 1 (player not loose) in reg A
@@ -318,16 +323,10 @@ main:   ; If key is pressed, next
         CALL PlayerWin
         CP 0
         JR Z, mainloopNext
-        ; Start : If one player in game goto mainLoopNext
+        ;debug:
         LD A, (playersNumber)
         CP 0x31
         JR Z,  mainloopNext
-        ; End
-        ; Start : If letter choosen was in word, no change player
-        LD A, (detectedWordTemp)
-        CP 1
-        JR Z,  mainloopNext
-        ; End
         CALL ChangeTokenPlayer              ; Change token to another player
         CALL ChangeActivePlayer             ; Change active player
         mainloopNext: 
@@ -342,7 +341,7 @@ Exit:
     chooseYesorNoLoop:
             CALL KEY        ; Test if a key is pressed
             JR C, chooseYesorNoLoop ; If no, goto start loop
-        ; If a key is pressed
+    debugjaune:                 ; If yes
         CP 0x4F                 ; Test key "O"
         JP Z, suite            ; If "o" goto "ExitOK"
         CP 0x6F                 ; Test key "O"
@@ -472,6 +471,17 @@ DetectLetterWord:
         RET Z
         CP C
     RET
+PrintLetter:            ; Letter is in A
+    LD C, 2             ; Load pen color
+    CALL CHRCOL         ; Text color = 2
+    LD C,A                              ; Put A (CHR value) to C (param)
+    LD DE, (tempPrintLetter)            ; Destination Adress
+    CALL PUTCHR                         ; Display CHR in screen (1 or 2) 
+    LD A, E
+    ADD A, 0xA
+    LD E, A
+    LD (tempPrintLetter), DE
+    RET
 
 ShowLettersPlayerChoice:            ; Draw the letter instead of the dash of the word 
     LD IX, (tempAdressWord)         ; Load IX adress of the word
@@ -578,9 +588,6 @@ ChangeTokenPlayer:
         RET
 LetterWasInWord:
     LD A, (detectedWord)
-    LD (detectedWordTemp), A
-
-    LD A, (detectedWord)
     CP 0
     JR Z, noLetterInWord
     LD A, 0
@@ -608,7 +615,8 @@ PrintPendu:
     CP 1                            ; Compare with 1
     JR NZ, printPenduPlayer2        ; If no, goto to printPenduPlayer2
     ; test leg start
-    LD A,(player1OffsetPendu)
+    LD BC,(player1OffsetPendu)
+    LD A,(BC)
     CP 1
     CALL Z, DrawLeg
     ; Test callback Drawleg function. If 1 ret, however continu
@@ -627,6 +635,14 @@ PrintPendu:
     LD (player1OffsetPendu), HL
     RET
     printPenduPlayer2:
+        ; test leg start
+        LD BC,(player2OffsetPendu)
+        LD A,(BC)
+        CP 1
+        CALL Z, DrawLeg
+        ; Test callback Drawleg function. If 1 ret, however continu
+        CP 1
+        RET Z
         LD IX, (player2OffsetPendu)
         LD A, (IX+5)
         ADD A, 100
@@ -646,8 +662,104 @@ PrintPendu:
         LD (player2OffsetPendu), HL
     RET
 DrawLeg:
-    LD A,0
+; Determine if left leg or right leg
+    LD A, (activePlayer)            ; Load activePlayer (1 or 2)
+    CP 1                            ; Compare with 1
+    JR Z, determinePlayer1Leg       ; If so, jump to detereminePlayer1Leg
+    ; If not, determinePlayer2leg
+    LD A, (player2Leg)              ; Load player2Leg (0 = left leg, 1 = right leg)
+    CP 0                            ; Compare with 0
+    CALL Z, DrawLeftLeg             ; If yes call DrawLefLeg
+    CP 2                            ; Test the calback of DrawLefLeg function
+    JR NZ, endLeg                    ; If yes, jump to endLeg
+    CALL DrawRightLeg               ; If no, call DrawrightLeg
+    JR Z, endLeg                    ; jump to endLeg
+    determinePlayer1Leg:
+        LD A, (player1Leg)          ; Load player1Leg (0 = left leg, 1 = right leg)
+        CP 0                        ; Compare with 0
+        CALL Z, DrawLeftLeg         ; If yes call DrawLefLeg
+        CP 2                        ; Test the calback of DrawLefLeg function
+        JR NZ, endLeg                ; If yes, jump to endLeg
+        CALL DrawRightLeg            ; If no, call DrawrightLeg
+    endLeg:
     RET
+DrawLeftLeg:
+; Draw the leg from one square that shifts 7 times
+    LD B, 0x6       ; Set counter value
+    LD A, (activePlayer)
+    CP 1
+    JR Z, drawLeftLegLoop
+    LD IX, penduPlayerLeftLeg
+    LD A, (IX+5)
+    ADD 100
+    LD (IX+5), A
+    drawLeftLegLoop:
+        PUSH BC                 ; Save compteur on the stack
+        LD BC, penduPlayerLeftleg   ; Load adrees of penduPlayerLeg
+        INC BC                  ; INC address to escape octet 1 (leg or not leg)
+        PUSH BC                 ; Save BC on stack befor CALL 0D5D
+        CALL 0D5Dh              ; Draw on screen
+        debug001:
+        POP IX                  ; Load IX (adress of penduPlayerLeg) with stack
+        LD A, (IX+3)            ; Load in A the value of Y coordinate of penduPlayerLeg
+        ADD 4                   ; Add 4 
+        LD (IX+3), A            ; Save new value of Y coordinate
+        LD A, (IX+4)            ; Load in A the value of X coordinate of penduPlayerLeg
+        SUB 2                   ; Sub 2 
+        LD (IX+4), A            ; Save new value of X coordinate
+        POP BC                  ; Load in BC the value of counter form stack
+        DJNZ drawLeftLegLoop        ; Loop
+        ; At the end of loop
+        LD IX, penduPlayerLeftLeg   ; Load in IX the adress of penduPlayerLeg
+        LD (IX+4), 0x73         ; Set the Y value to initial
+        LD (IX+5), 0x4C         ; Set the X value to initial
+        LD A, 1                 ; Set A to 1 -> return of function
+        POP BC                  ; POP BC for clean stack
+        setLeg:
+            ; Set leftleg to 1 (next will be rightLeg)
+            LD A,(activePlayer)
+            CP 1
+            JR Z, setLegPlayer1
+            LD A, 2
+            LD (player2Leg), A
+            RET
+            setLegPlayer1:
+                LD A, 2
+                LD (player1Leg), A
+                RET
+DrawRightLeg:
+; Draw the leg from one square that shifts 7 times
+    LD B, 0x6       ; Set counter value
+    LD A, (activePlayer)
+    CP 1
+    JR Z, drawRightLegLoop
+    LD IX, penduPlayerRightLeg
+    LD A, (IX+5)
+    ADD 100
+    LD (IX+5), A
+    drawRightLegLoop:
+        PUSH BC                     ; Save compteur on the stack
+        LD BC, penduPlayerRightleg  ; Load adrees of penduPlayerLeg
+        INC BC                      ; INC address to escape octet 1 (leg or not leg)
+        PUSH BC                     ; Save BC on stack befor CALL 0D5D
+        CALL 0D5Dh                  ; Draw on screen
+        debug002:
+        POP IX                  ; Load IX (adress of penduPlayerLeg) with stack
+        LD A, (IX+3)            ; Load in A the value of Y coordinate of penduPlayerLeg
+        ADD 4                   ; Add 4 
+        LD (IX+3), A            ; Save new value of Y coordinate
+        LD A, (IX+4)            ; Load in A the value of X coordinate of penduPlayerLeg
+        ADD 2                   ; Sub 2 
+        LD (IX+4), A            ; Save new value of X coordinate
+        POP BC                  ; Load in BC the value of counter form stack
+        DJNZ drawRightLegLoop        ; Loop
+        ; At the end of loop
+        LD IX, penduPlayerRightLeg   ; Load in IX the adress of penduPlayerLeg
+        LD (IX+4), 0x73         ; Set the Y value to initial
+        LD (IX+5), 0x50         ; Set the X value to initial
+        LD A, 1                 ; Set A to 1 -> return of function
+        POP BC                  ; POP BC for clean stack
+        RET
 PlayerWin:
     LD A, (lenWord)
     CP 0
@@ -837,7 +949,7 @@ ShowWordifLostOrWin:
         LD C, 2             ; Load Color pen 2=Cyan
         CALL CHRCOL         ; Apply text color=2 (Cyan)
         LD BC, pressKeyStr  ; Show str "Appuyez sur une touche"
-        LD DE, 3092h        ; X, Y positions
+        LD DE, 3295h        ; X, Y positions
         CALL PutstrDelay    ; Displays text on screen
         CALL KEY                        ; Test if a key is pressed
         JR C,  endloopShowWordifLostOrWin                   ; Loop if key not pressed
@@ -847,13 +959,16 @@ ShowWordifLostOrWin:
 ;;;  DATA                                   ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ORG 6000h
-xWord:              db 0x0
-; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
-colors_title:       db 0x0, 0x03, 0x04, 0x07, 0x0
-; 0=black(0)(00), 7=white(7)(01), 6=cyan(6)(10), 2=green(2)(11), 4=half light = false
-colors_pre_game:    db 0x0, 0x07, 0x06, 0x02, 0x0
-colors_games:       db 0x0, 0x04, 0x07, 0x02, 0x0
-colors_end:         db 0x0, 0x01, 0x02, 0x04, 0x0
+xWord:
+            db 0x0
+colors_title:       ; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
+    db 0x0, 0x03, 0x04, 0x07, 0x0
+colors_pre_game:    ; 0=black(0)(00), 7=white(7)(01), 6=cyan(6)(10), 2=green(2)(11), 4=half light = false
+    db 0x0, 0x07, 0x06, 0x02, 0x0
+colors_games:
+    db 0x0, 0x04, 0x07, 0x02, 0x0
+colors_end:
+    db 0x0, 0x01, 0x02, 0x04, 0x0
 
 histoire:
     h01:    db "Annee 1453, les temps sont durs.",0
@@ -862,7 +977,7 @@ histoire:
     h15:    db "Et pas tout seul, avec sa femme.",0
     h20:    db "Ni une, ni deux, ni trois d'ailleurs,", 0
     h22:    db "Vous voil",A_ACCENT, " arret", E_AIGU, " pour etre pendu.", 0
-    h25:    db "Et oui,",0
+    h25:    db "H",E_AIGU," oui,",0
     h27:    db "pas touche ", A_ACCENT, " la femme du Maire!", 0 
     h30:    db "Vous voici au bout d'une corde,",0
     h32:    db "avec un compagnon d'infortune.",0
@@ -870,21 +985,27 @@ histoire:
     h40:    db "la bonne r", E_AIGU, "ponse aura la vie sauve.",0
     h45:    db "Bonne chance,",0
     h50:    db "telle est la vie en 1453.",0
-myRandomNumber:         db 0x0
-playersNumber:          db 0x0
-player1Score:           db 0x36
-player2Score:           db 0x36
-player1OffsetPendu:     dw 0x0
+myRandomNumber:
+            db 0x0
+playersNumber:
+            db 0x0
+player1Score:
+            db 0x36
+player2Score:
+            db 0x36
+player1OffsetPendu:
+            dw 0x0
 player2OffsetPendu:     dw 0x0
+player1Leg:              db 0x0  ; 0 = left leg, 1 = right
+player2Leg:              db 0x0  ; 0 = left leg, 1 = right
 activePlayer:           db 0x01
 detectedWord:           db 0x0
-detectedWordTemp:       db 0x0
 tempAdressWord:         dw 0x21C3
 tempPrintLetter:        dw 0x0
 adressLetterChoice:     dw 0xE001
 lastLetterChooseCHR:    db 0x0
 firstWord:
-    INCLUDE "Data/words.asm"
+    INCLUDE "../Data/words.asm"
 lenWord:        db  0x0
 pressKeyStr:    db "Appuyez sur une touche",0
 exitMessage:    db "Espace:QUITTER", 0
@@ -931,24 +1052,31 @@ penduPlayer1BrasGauche:
             db 0, 5, 20, 2, 80, 85 
 penduPlayer1BrasDroite:
             db 0, 5, 20, 2, 80, 60 
-penduPlayer1LeftLeg:
-            db  0, 30, 5, 2, 110, 74
-penduPlayer1RightLeg:
-            db  0, 30, 5, 2, 110, 87
-penduPlayer
-Leg:        db  1, 10, 10, 2, 110, 74
+;penduPlayer1LeftLeg:
+;            db  0, 30, 5, 2, 110, 74
+;penduPlayer1RightLeg:
+;            db  0, 30, 5, 2, 110, 87
+penduPlayerLeftLeg:
+            db  1, 5, 5, 2, 115, 76
+penduPlayerRightLeg:
+            db  1, 5, 5, 2, 115, 84
 tokenMaskPlayer:
             db 10, 10, 0, 155, 47
-backgroundText01:   db 20, 150, 2, 194, 38
-backgroundText02:   db 20, 150, 1, 140, 38
-WordTiret:          db 0xFF, 0xFF
-timedelay:          dw FFFFh
-tokenSprite:        db 0x50, 0x5, 0xf4, 0x1f, 0x7d, 0x7d, 0x5d, 0x75, 0x5d, 0x75, 0x7d, 0x7d, 0xf4, 0x1f, 0x50, 0x5
-debugchr1:          db 8, 8, 3, 1, 1 
-debugchr2:          db 8, 8, 3, 8, 8
-randData:           db 100
+backgroundText01: db 20, 150, 2, 194, 38
+backgroundText02: db 20, 150, 1, 143, 40
+WordTiret:
+            db 0xFF, 0xFF
+timedelay dw FFFFh
+tokenSprite:
+            db 0x50, 0x5, 0xf4, 0x1f, 0x7d, 0x7d, 0x5d, 0x75, 0x5d, 0x75, 0x7d, 0x7d, 0xf4, 0x1f, 0x50, 0x5
+debugchr1:
+            db 8, 8, 3, 1, 1 
+debugchr2:
+            db 8, 8, 3, 8, 8
+randData db 100
+
 splashScreen:
-    INCLUDE "Data/splashscreen.asm"
+    INCLUDE "../Data/splashscreen.asm"
 ecranFin01:
-    INCLUDE "Data/endscreen.asm"
+    INCLUDE "../Data/endscreen.asm"
 fin:
