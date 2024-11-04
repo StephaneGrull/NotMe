@@ -1,1 +1,0 @@
-/Users/7511036v/Downloads/RASM/rasm.macos ./Sources/NotMe!_V1-K7.asm -sp -eo -sv -sl -v -o ./Bin/NotMe!_V1-K7

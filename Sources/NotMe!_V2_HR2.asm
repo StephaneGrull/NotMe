@@ -17,6 +17,7 @@ PRINTLETTERADD      equ 9601h
 E_AIGU              equ 7Bh  
 E_GRAVE             equ 7Dh
 A_ACCENT            equ 60h   
+ENDIMGLENGHT        equ 6AC0h
 
 MACRO DELAYMACRO mavar
     repeat {mavar}
@@ -39,11 +40,11 @@ ORG 4200h
     LD SP, 0C000h           ; Tout les progs commencent par cette instruction
 start:
     CALL CLS                ; Clear screen
-initColors:                 ; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
+initColors:                  ; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
     LD BC, colors_title     ; Load colors table to BC
     CALL SETCOL             ; Set palet colors (4 colors)
 gameScreenTitle:
-    LD A, 0                 ; Load color screen 0=black
+    XOR A                   ; LD A, 0 Load color screen 0=black
     CALL SETSCR             ; Set screen color 0, black (do cls in same time)
     LD HL, splashScreen     ; Load splashScreen adress in HL
     LD DE, 0xC000           ; Load Adress Screen begin 
@@ -52,11 +53,10 @@ gameScreenTitle:
     gameScreenTitleKeyDetection:            ; Waiting to press a key
         CALL KEY                            ; Test if a key is pressed
         JR C, gameScreenTitlekeyDetection   ; Loop if key not pressed
-    ;JP main
 preMain:                        ; Load first screen and history
     LD BC, colors_pre_game      ; 0=black(0)(00), 1=white(7)(01), 2=cyan(6)(10), 3=green(2)(11), 4=half light = false
     CALL SETCOL                 ; Set palet colors (4 colors)
-    LD A, 0                     ; Load color screen 0=black
+    XOR A                     ; Load color screen 0=black
     CALL SETSCR                 ; Set color 0, black (do cls in same time)
     LD C, 2                     ; Load color pen 2=Cyan
     CALL CHRCOL                 ; Apply color 2 to pen
@@ -125,7 +125,8 @@ main:   ; If key is pressed, next
     colorInit:
         LD BC, colors_games     ; Load colors table to BC
         CALL SETCOL             ; Set palet colors (4 colors)
-        LD A, 0                 ; Load color 0 (Black) in A
+        OR A
+        ;LD A, 0                 ; Load color 0 (Black) in A
         CALL SETSCR             ; Set color screen 0 : black (do cls in same time)
         LD C, 2                 ; Load Color pen 2=Cyan
         CALL CHRCOL             ; Apply text color=2 (Cyan)
@@ -183,7 +184,6 @@ main:   ; If key is pressed, next
                         LD (IX), 0
                         ;Test si 1 joueur
                         LD A, (playersNumber)
-                        debugChangeName:
                         CP 0x31
                         CALL Z, changeNamePlayer2
                         JR Z, wordChoose
@@ -310,11 +310,8 @@ main:   ; If key is pressed, next
         CP 0x20                         ; If key is SPACE
         JR Z, exit                      ; Exit game
         POP AF
-        PUSH AF
-        CALL PrintLetter            
-        POP AF
-        CALL ShowLettersPlayerChoice        ; Print letter if letter is in word or decrease PlayerScore if letter is not in word
-        CALL ShowLettersPlayer
+        CALL ShowLettersPlayerChoice        ; Detect if letter is in word and show it if so 
+        CALL ShowLettersPlayer              ; Draw letter in the right screen (in white if not in word or green if so)
         ; Detect if player letter was in word
         CALL LetterWasInWord
         CALL PlayerLost                     ; The routine LetterWasInWord return 0 (player loose) or 1 (player not loose) in reg A
@@ -323,10 +320,16 @@ main:   ; If key is pressed, next
         CALL PlayerWin
         CP 0
         JR Z, mainloopNext
-        ;debug:
+        ; Start : If one player in game goto mainLoopNext
         LD A, (playersNumber)
         CP 0x31
         JR Z,  mainloopNext
+        ; End
+        ; Start : If letter choosen was in word, no change player
+        LD A, (detectedWordTemp)
+        CP 1
+        JR Z,  mainloopNext
+        ; End
         CALL ChangeTokenPlayer              ; Change token to another player
         CALL ChangeActivePlayer             ; Change active player
         mainloopNext: 
@@ -341,7 +344,7 @@ Exit:
     chooseYesorNoLoop:
             CALL KEY        ; Test if a key is pressed
             JR C, chooseYesorNoLoop ; If no, goto start loop
-    debugjaune:                 ; If yes
+        ; If a key is pressed
         CP 0x4F                 ; Test key "O"
         JP Z, suite            ; If "o" goto "ExitOK"
         CP 0x6F                 ; Test key "O"
@@ -363,8 +366,6 @@ Exit:
         LD (activePlayer), A
         LD A, 0
         LD (detectedWord), A
-        LD (player1Leg), A
-        LD (player2Leg), A
         LD HL, 0x21C3
         LD (tempAdressWord), HL
         LD HL, 0xE001
@@ -473,17 +474,6 @@ DetectLetterWord:
         RET Z
         CP C
     RET
-PrintLetter:            ; Letter is in A
-    LD C, 2             ; Load pen color
-    CALL CHRCOL         ; Text color = 2
-    LD C,A                              ; Put A (CHR value) to C (param)
-    LD DE, (tempPrintLetter)            ; Destination Adress
-    CALL PUTCHR                         ; Display CHR in screen (1 or 2) 
-    LD A, E
-    ADD A, 0xA
-    LD E, A
-    LD (tempPrintLetter), DE
-    RET
 
 ShowLettersPlayerChoice:            ; Draw the letter instead of the dash of the word 
     LD IX, (tempAdressWord)         ; Load IX adress of the word
@@ -590,6 +580,9 @@ ChangeTokenPlayer:
         RET
 LetterWasInWord:
     LD A, (detectedWord)
+    LD (detectedWordTemp), A
+
+    LD A, (detectedWord)
     CP 0
     JR Z, noLetterInWord
     LD A, 0
@@ -662,7 +655,7 @@ PrintPendu:
         LD HL, (player2OffsetPendu)     ; Add for arrive on next thing of pendu
         INC HL, HL, HL, HL, HL
         LD (player2OffsetPendu), HL
-    RET
+        RET
 DrawLeg:
 ; Determine if left leg or right leg
     LD A, (activePlayer)            ; Load activePlayer (1 or 2)
@@ -831,9 +824,10 @@ OnePlayerLost:
     LD DE, 7A17h            ; X, Y positions
     CALL PutstrDelay        ; Displays text on screen
     ; Show end screen
-    LD HL, ecranFin01     ; Load splashScreen adress in HL
+    LD HL, ecranFin02     ; Load splashScreen adress in HL
     LD DE, 0xD700           ; Load Adress Screen begin 
-    LD BC, 0x7AF4           ; Load image length in byte
+    ;LD BC, 0x7AF4           ; Load image length in byte
+    LD BC, ENDIMGLENGHT
     CALL ShowScreen    
     LD A, 1
     RET
@@ -870,13 +864,17 @@ EndPlayer1:
     CALL PutstrDelay        ; Displays text on screen
     CALL DELAY 
     ; Show end screen
-    LD HL, ecranFin01     ; Load splashScreen adress in HL
+    LD HL, ecranFin02     ; Load splashScreen adress in HL
     LD DE, 0xD700           ; Load Adress Screen begin 
-    LD BC, 0x7AF4           ; Load image length in byte
+    ;LD BC, 0x7AF4           ; Load image length in byte
+    LD BC, ENDIMGLENGHT
     CALL ShowScreen             
     LD A, 0                 ; Player 1 lost
     RET
 EndPlayer2:
+    LD A, (playersNumber)
+    CP 0x31
+    JR Z, nextEndPlayer2
     LD C, 1                 ; PEN couleur rouge
     CALL CHRCOL
     LD BC, player2          ; "Player 2"
@@ -885,39 +883,67 @@ EndPlayer2:
     LD BC, player1Lost01    ; "Tu as perdu..."
     LD DE, 0A0Dh            ; X, Y positions
     CALL PutstrDelay        ; Displays text on screen
-    LD C, 2                 ; PEN couleur verte
-    CALL CHRCOL
-    LD BC, player1          ; "Player 1"
-    LD DE, 0A17h            ; X, Y positions
-    CALL PutstrDelay        ; Displays text on screen
-    LD BC, player1Win01     ; "Tu as gagné, je te libère..."
-    LD DE, 0A21h            ; X, Y positions
-    CALL PutstrDelay        ; Displays text on screen
-    LD BC, player1Win02     ; "Mais ne t'approche plus de ma femme"
-    LD DE, 0A2Bh            ; X, Y positions
-    CALL PutstrDelay        ; Displays text on screen
-    LD A, (playersNumber)
-    CP 0x31
-    RET Z
-    LD C, 1                 ; PEN couleur rouge
-    CALL CHRCOL
-    LD BC, player1Win03     ; "Bourreau, exécutez"
-    LD DE, 0A35h            ; X, Y positions
-    CALL PUTSTR             ; Displays text on screen
-    LD BC, player2          ; "Name of Player 2"
-    LD DE, 7A35h            ; X, Y positions
-    CALL PutstrDelay        ; Displays text on screen
-    LD BC, player1Win04     ; "MAINTENANT!!!!!"
-    LD DE, 0A3Fh            ; X, Y positions
-    CALL PutstrDelay        ; Displays text on screen
-    CALL DELAY
-    ; Show end screen
-    LD HL, ecranFin01       ; Load splashScreen adress in HL
-    LD DE, 0xD700           ; Load Adress Screen begin 
-    LD BC, 0x7AF4           ; Load image length in byte
-    CALL ShowScreen         ; Display image
-    LD A,0                  ; Player 2 lost
-    RET
+    nextEndPlayer2:
+        LD C, 2                 ; PEN couleur verte
+        CALL CHRCOL
+        LD BC, player1          ; "Player 1"
+        LD DE, 0A17h            ; X, Y positions
+        CALL PutstrDelay        ; Displays text on screen
+        LD BC, player1Win01     ; "Tu as gagné, je te libère..."
+        LD DE, 0A21h            ; X, Y positions
+        CALL PutstrDelay        ; Displays text on screen
+        LD BC, player1Win02     ; "Mais ne t'approche plus de ma femme"
+        LD DE, 0A2Bh            ; X, Y positions
+        CALL PutstrDelay        ; Displays text on screen
+        LD A, (playersNumber)
+        CP 0x31
+        JR Z, showRectEndPlayer2
+        LD C, 1                 ; PEN couleur rouge
+        CALL CHRCOL
+        LD BC, player1Win03     ; "Bourreau, exécutez"
+        LD DE, 0A35h            ; X, Y positions
+        CALL PUTSTR             ; Displays text on screen
+        LD BC, player2          ; "Name of Player 2"
+        LD DE, 7A35h            ; X, Y positions
+        CALL PutstrDelay        ; Displays text on screen
+        LD BC, player1Win04     ; "MAINTENANT!!!!!"
+        LD DE, 0A3Fh            ; X, Y positions
+        CALL PutstrDelay        ; Displays text on screen
+        CALL DELAY
+        ; Show end screen
+        LD HL, ecranFin02       ; Load splashScreen adress in HL
+        LD DE, 0xD700           ; Load Adress Screen begin 
+        ;LD BC, 0x7AC0           ; Load image length in byte
+        LD BC, ENDIMGLENGHT
+        CALL ShowScreen         ; Display image
+        JR endPlayer2KeyDetection
+        showRectEndPlayer2:
+            ; Change palette color
+            LD BC, colors_end_02   ; Load colors table to BC
+            CALL SETCOL             ; Set palet colors (4 colors)
+            ; Show end screen
+            LD HL, ecranFin02       ; Load splashScreen adress in HL
+            ;LD HL, ecranFin01       ; Load splashScreen adress in HL
+            LD DE, 0xD300           ; Load Adress Screen begin 
+            ;LD BC, 0x7AC0           ; Load image length in byte
+            LD BC, ENDIMGLENGHT
+            CALL ShowScreen         ; Display image
+            CALL DELAY 
+            LD A,0                  ; Player 2 lost
+            ; Show rect text background
+            LD BC, backgroundText01
+            CALL 0D5Dh
+            ; End show rect text background
+            LD C, 1             ; Load Color pen 2=Cyan
+            CALL CHRCOL         ; Apply text color=2 (Cyan)
+            LD BC, pressKeyStr  ; Show str "Appuyez sur une touche"
+            LD DE, 30C8h        ; X, Y positions
+            CALL PutstrDelay    ; Displays text on screen
+            endPlayer2KeyDetection:
+                CALL KEY                    ; Test if a key is pressed
+                JR C, endPlayer2keyDetection   ; Loop if key not pressed
+                RET
+
 ChangeNamePlayer2:  ; Change name player 2 yyyyyyyyyyyy to Player 2, 0
     LD IX, player2          ; LD adress of name Player 2
     LD (IX+0), 0x50         ; Put Ox50(P) in first octet
@@ -951,35 +977,35 @@ ShowWordifLostOrWin:
         LD C, 2             ; Load Color pen 2=Cyan
         CALL CHRCOL         ; Apply text color=2 (Cyan)
         LD BC, pressKeyStr  ; Show str "Appuyez sur une touche"
-        LD DE, 3295h        ; X, Y positions
+        LD DE, 3092h        ; X, Y positions
         CALL PutstrDelay    ; Displays text on screen
         CALL KEY                        ; Test if a key is pressed
         JR C,  endloopShowWordifLostOrWin                   ; Loop if key not pressed
         RET
-
+;ecranFin01:
+;    INCLUDE "../Data/endscreenLost.asm"
+finCode:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;  DATA                                   ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ORG 6000h
-xWord:
-            db 0x0
-colors_title:       ; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
-    db 0x0, 0x03, 0x04, 0x07, 0x0
-colors_pre_game:    ; 0=black(0)(00), 7=white(7)(01), 6=cyan(6)(10), 2=green(2)(11), 4=half light = false
-    db 0x0, 0x07, 0x06, 0x02, 0x0
-colors_games:
-    db 0x0, 0x04, 0x07, 0x02, 0x0
-colors_end:
-    db 0x0, 0x01, 0x02, 0x04, 0x0
+xWord:              db 0x0
+; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
+colors_title:       db 0x0, 0x03, 0x04, 0x07, 0x0
+; 0=black(0)(00), 7=white(7)(01), 6=cyan(6)(10), 2=green(2)(11), 4=half light = false
+colors_pre_game:    db 0x0, 0x7, 0x6, 0x2, 0x0
+colors_games:       db 0x0, 0x4, 0x7, 0x2, 0x0
+;colors_end_01:      db 0x0, 0x1, 0x2, 0x4, 0x0
+colors_end_02:      db 0x0, 0x3, 0x4, 0x1, 0x0
 
 histoire:
-    h01:    db "Annee 1453, les temps sont durs.",0
+    h01:    db "Annee 1473, les temps sont durs.",0
     h05:    db "Le maire de la ville d'Hectorland",0
     h10:    db "vous a trouv", E_AIGU, " chez lui, dans son lit.",0
     h15:    db "Et pas tout seul, avec sa femme.",0
     h20:    db "Ni une, ni deux, ni trois d'ailleurs,", 0
     h22:    db "Vous voil",A_ACCENT, " arret", E_AIGU, " pour etre pendu.", 0
-    h25:    db "H",E_AIGU," oui,",0
+    h25:    db "Et oui,",0
     h27:    db "pas touche ", A_ACCENT, " la femme du Maire!", 0 
     h30:    db "Vous voici au bout d'une corde,",0
     h32:    db "avec un compagnon d'infortune.",0
@@ -987,21 +1013,17 @@ histoire:
     h40:    db "la bonne r", E_AIGU, "ponse aura la vie sauve.",0
     h45:    db "Bonne chance,",0
     h50:    db "telle est la vie en 1453.",0
-myRandomNumber:
-            db 0x0
-playersNumber:
-            db 0x0
-player1Score:
-            db 0x36
-player2Score:
-            db 0x36
-player1OffsetPendu:
-            dw 0x0
+myRandomNumber:         db 0x0
+playersNumber:          db 0x0
+player1Score:           db 0x36
+player2Score:           db 0x36
+player1OffsetPendu:     dw 0x0
 player2OffsetPendu:     dw 0x0
 player1Leg:              db 0x0  ; 0 = left leg, 1 = right
 player2Leg:              db 0x0  ; 0 = left leg, 1 = right
 activePlayer:           db 0x01
 detectedWord:           db 0x0
+detectedWordTemp:       db 0x0
 tempAdressWord:         dw 0x21C3
 tempPrintLetter:        dw 0x0
 adressLetterChoice:     dw 0xE001
@@ -1025,7 +1047,7 @@ player2Win02:   db "Ne t'avise plus a me voler", 0
 Player2Win03:   db "Bourreau, ex",E_AIGU,"cutez",0
 end01:          db "Voulez-vous rejouer une partie (O/N) ?",0
 end02:          db "Merci d'avoir jou", E_AIGU, ".", 0
-end03           db "Jeu pour GamJAm 09/2024:", 0
+end03           db "Jeu pour GamJam 09/2024:", 0
 end04           db "Retro Programmers United For Obscurs Systemes", 0
 end05           db "Graph (accueil+fin) : Henri BLUM", 0
 end06           db "Code assembleur : DarkSteph", 0
@@ -1054,31 +1076,24 @@ penduPlayer1BrasGauche:
             db 0, 5, 20, 2, 80, 85 
 penduPlayer1BrasDroite:
             db 0, 5, 20, 2, 80, 60 
-;penduPlayer1LeftLeg:
-;            db  0, 30, 5, 2, 110, 74
-;penduPlayer1RightLeg:
-;            db  0, 30, 5, 2, 110, 87
 penduPlayerLeftLeg:
             db  1, 5, 5, 2, 115, 76
 penduPlayerRightLeg:
             db  1, 5, 5, 2, 115, 84
-tokenMaskPlayer:
-            db 10, 10, 0, 155, 47
-backgroundText01: db 20, 150, 2, 194, 38
-backgroundText02: db 20, 150, 1, 143, 40
-WordTiret:
-            db 0xFF, 0xFF
-timedelay dw FFFFh
-tokenSprite:
-            db 0x50, 0x5, 0xf4, 0x1f, 0x7d, 0x7d, 0x5d, 0x75, 0x5d, 0x75, 0x7d, 0x7d, 0xf4, 0x1f, 0x50, 0x5
-debugchr1:
-            db 8, 8, 3, 1, 1 
-debugchr2:
-            db 8, 8, 3, 8, 8
-randData db 100
-
+tokenMaskPlayer:        db 10, 10, 0, 155, 47
+backgroundText01:       db 20, 150, 2, 194, 38
+backgroundText02:       db 20, 150, 1, 140, 38
+WordTiret:              db 0xFF, 0xFF
+timedelay:              dw FFFFh
+tokenSprite:            db 0x50, 0x5, 0xf4, 0x1f, 0x7d, 0x7d, 0x5d, 0x75, 0x5d, 0x75, 0x7d, 0x7d, 0xf4, 0x1f, 0x50, 0x5
+debugchr1:              db 8, 8, 3, 1, 1 
+debugchr2:              db 8, 8, 3, 8, 8
+randData:               db 100
+;ecranFin01:
+;     INCLUDE "../Data/endscreenWin.asm"
+ecranFin02:
+     INCLUDE "../Data/endscreenLost.asm"
 splashScreen:
     INCLUDE "../Data/splashscreen.asm"
-ecranFin01:
-    INCLUDE "../Data/endscreen.asm"
-fin:
+
+finData:

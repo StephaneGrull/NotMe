@@ -1,16 +1,20 @@
 from PIL import Image
 import os
 
-img = Image.open('/Users/7511036V/Documents/Perso/ASM/HECTOR/NOTME/ecran-jeu-hector-fin-v00.png')
+#img = Image.open('/Users/7511036V/Documents/Perso/ASM/HECTOR/NOTME/ecran-jeu-hector-fin-v00.png')
+img = Image.open('/Users/7511036V/Documents/Perso/ASM/HECTOR/NOTME/Data/ecran-jeu-hector-fin-solo_v00.png')
+
 
 def get_color(val, x, y):
-    if val == (0, 0, 0, 255): # noir
+    if val == (0, 0, 0): # noir
         return 0
-    elif val == (255, 255, 0, 255): # jaune
+    elif val == (255, 255, 0): # jaune
         return 1
-    elif val == (0, 0, 255, 255): # bleu
+    elif val == (0, 0, 255): # bleu
         return 2
-    elif val == (255, 255, 255, 255): # blanc
+    #elif val == (255, 255, 255, 255): # blanc
+    #    return 3
+    elif val == (255, 0, 0): # rouge
         return 3
     else:
         print("le pixel ", val, x, y)
