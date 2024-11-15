@@ -37,30 +37,52 @@ MEND
 ; bug 1 player lorsqu'on trouve le mot
 
 ORG 4200h
-    LD SP, 0C000h           ; Tout les progs commencent par cette instruction
+BEGINCODE4200:
+    LD SP, 0FFFFh           ; Tout les progs commencent par cette instruction
 start:
     CALL CLS                ; Clear screen
 initColors:                  ; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
     LD BC, colors_title     ; Load colors table to BC
     CALL SETCOL             ; Set palet colors (4 colors)
 gameScreenTitle:
-    XOR A                   ; LD A, 0 Load color screen 0=black
-    CALL SETSCR             ; Set screen color 0, black (do cls in same time)
-    LD HL, splashScreen     ; Load splashScreen adress in HL
-    LD DE, 0xC000           ; Load Adress Screen begin 
-    LD BC, 0xDF00           ; Load image length in byte
-    CALL ShowScreen
+    LD A, 0                  ; LD A, 0 Load color screen 0=black
+    CALL SETSCR             ; Set screen color 0, black (do cls in same time)    
+    ;1ere image
+    LD DE,0xFD00
+    LD HL,EXOMIZER
+    LD BC,FINEXOMIZER-EXOMIZER+1
+    LDIR
+    LD DE, 0xC000 ; DE adresse destination VRAM
+    LD HL,  splashscreen; HL adresse image compressé
+    CALL 0xFD00
+    ; ;2e image
+    ; LD DE,0xFD00
+    ; LD HL,EXOMIZER
+    ; LD BC,FINEXOMIZER-EXOMIZER+1
+    ; LDIR
+    ; LD DE, 0xC000 ; DE adresse destination VRAM
+    ; LD HL,  ecranFin01; HL adresse image compressé
+    ; CALL 0xFD00
+    ; ;3e image
+    ; LD DE,0xFD00
+    ; LD HL,EXOMIZER
+    ; LD BC,FINEXOMIZER-EXOMIZER+1
+    ; LDIR
+    ; LD DE, 0xD700 ; DE adresse destination VRAM
+    ; LD HL,  ecranFin02; HL adresse image compressé
+    ; CALL 0xFD00
     gameScreenTitleKeyDetection:            ; Waiting to press a key
         CALL KEY                            ; Test if a key is pressed
         JR C, gameScreenTitlekeyDetection   ; Loop if key not pressed
 preMain:                        ; Load first screen and history
     LD BC, colors_pre_game      ; 0=black(0)(00), 1=white(7)(01), 2=cyan(6)(10), 3=green(2)(11), 4=half light = false
     CALL SETCOL                 ; Set palet colors (4 colors)
-    XOR A                       ; Load color screen 0=black
+    LD A, 0                      ; Load color screen 0=black
     CALL SETSCR                 ; Set color 0, black (do cls in same time)
     LD C, 2                     ; Load color pen 2=Cyan
     CALL CHRCOL                 ; Apply color 2 to pen
     DELAYMACRO 10
+    debug01:
     LD BC, h01:         ; Load Adress sentence "Annee 1453, les temps sont durs."
     LD DE, 0A0Ah        ; X, Y positions
     CALL PutstrDelay    ; Displays text
@@ -808,7 +830,7 @@ PlayerLost:
             DELAYMACRO 2
             CALL CLS
             DELAYMACRO 1
-            LD BC, colors_title     ; Load colors table to BC
+            LD BC, colors_end_02     ; Load colors table to BC
             CALL SETCOL             ; Set palet colors (4 colors)
             ; test if one player, if so go to enPlayer2Lost
             ;debugperdu:
@@ -841,12 +863,20 @@ OnePlayerLost:
     LD BC, player1          ; "Name of Player 1"
     LD DE, 7A17h            ; X, Y positions
     CALL PutstrDelay        ; Displays text on screen
-    ; Show end screen
+    Show end screen
     LD HL, ecranFin02     ; Load splashScreen adress in HL
-    LD DE, 0xD700           ; Load Adress Screen begin 
+    LD DE, 0xD300           ; Load Adress Screen begin 
     ;LD BC, 0x7AF4           ; Load image length in byte
     LD BC, ENDIMGLENGHT
-    CALL ShowScreen    
+    CALL ShowScreen 
+    CALL ShowButtonNExt
+    ; LD DE,  0xFD00
+    ; LD HL,  EXOMIZER
+    ; LD BC,  FINEXOMIZER-EXOMIZER+1
+    ; LDIR
+    ; LD DE,  0xD300 ; DE adresse destination VRAM
+    ; LD HL,  ecranFin02; HL adresse image compressé
+    ; CALL 0xFD00     
     LD A, 1
     RET
 EndPlayer1:
@@ -882,11 +912,19 @@ EndPlayer1:
     CALL PutstrDelay        ; Displays text on screen
     CALL DELAY 
     ; Show end screen
-    LD HL, ecranFin02     ; Load splashScreen adress in HL
-    LD DE, 0xD700           ; Load Adress Screen begin 
-    ;LD BC, 0x7AF4           ; Load image length in byte
+    LD HL, ecranFin02      ; Load splashScreen adress in HL
+    LD DE, 0xD300          ; Load Adress Screen begin 
+    LD BC, 0x7AF4          ; Load image length in byte
     LD BC, ENDIMGLENGHT
-    CALL ShowScreen             
+    CALL ShowScreen  
+    CALL ShowButtonNExt    
+    ; LD DE,  0xFD00
+    ; LD HL,  EXOMIZER
+    ; LD BC,  FINEXOMIZER-EXOMIZER+1
+    ; LDIR
+    ; LD DE,  0xD700      ; DE adresse destination VRAM
+    ; LD HL,  ecranFin02  ; HL adresse image compressé
+    ; CALL 0xFD00         
     LD A, 0                 ; Player 1 lost
     RET
 EndPlayer2:
@@ -930,38 +968,56 @@ EndPlayer2:
         CALL DELAY
         ; Show end screen
         LD HL, ecranFin02       ; Load splashScreen adress in HL
-        LD DE, 0xD700           ; Load Adress Screen begin 
-        ;LD BC, 0x7AC0           ; Load image length in byte
+        LD DE, 0xD300           ; Load Adress Screen begin 
+        LD BC, 0x7AC0           ; Load image length in byte
         LD BC, ENDIMGLENGHT
         CALL ShowScreen         ; Display image
+        CALL ShowButtonNExt
+        ; LD DE,0xFD00
+        ; LD HL,EXOMIZER
+        ; LD BC,FINEXOMIZER-EXOMIZER+1
+        ; LDIR
+        ; LD DE, 0xD700 ; DE adresse destination VRAM
+        ; LD HL,  ecranFin02; HL adresse image compressé
+        ; CALL 0xFD00  
         JR endPlayer2KeyDetection
         showRectEndPlayer2:
             ; Change palette color
             LD BC, colors_end_02   ; Load colors table to BC
             CALL SETCOL             ; Set palet colors (4 colors)
-            ; Show end screen
+            ;Show end screen
             LD HL, ecranFin02       ; Load splashScreen adress in HL
-            ;LD HL, ecranFin01       ; Load splashScreen adress in HL
+            LD HL, ecranFin01       ; Load splashScreen adress in HL
             LD DE, 0xD300           ; Load Adress Screen begin 
-            ;LD BC, 0x7AC0           ; Load image length in byte
+            LD BC, 0x7AC0           ; Load image length in byte
             LD BC, ENDIMGLENGHT
             CALL ShowScreen         ; Display image
+            CALL ShowButtonNExt
+            ; LD DE,  0xFD00
+            ; LD HL,  EXOMIZER
+            ; LD BC,  FINEXOMIZER-EXOMIZER+1
+            ; LDIR
+            ; LD DE,  0xD300  ; DE adresse destination VRAM
+            ; LD HL,  ecranFin01; HL adresse image compressé
+            ; CALL 0xFD00  
             CALL DELAY 
             LD A,0                  ; Player 2 lost
-            ; Show rect text background
-            LD BC, backgroundText01
-            CALL 0D5Dh
-            ; End show rect text background
-            LD C, 1             ; Load Color pen 2=Cyan
-            CALL CHRCOL         ; Apply text color=2 (Cyan)
-            LD BC, pressKeyStr  ; Show str "Appuyez sur une touche"
-            LD DE, 30C8h        ; X, Y positions
-            CALL PutstrDelay    ; Displays text on screen
+            
             endPlayer2KeyDetection:
                 ;CALL KEY                    ; Test if a key is pressed
                 ;JR C, endPlayer2keyDetection   ; Loop if key not pressed
                 RET
-
+ShowButtonNExt:
+    ; Show rect text background
+    LD BC, backgroundText01
+    CALL 0D5Dh
+    ; End show rect text background
+    LD C, 1             ; Load Color pen 2=Cyan
+    CALL CHRCOL         ; Apply text color=2 (Cyan)
+    LD BC, pressKeyStr  ; Show str "Appuyez sur une touche"
+    LD DE, 30C8h        ; X, Y positions
+    CALL PutstrDelay    ; Displays text on screen
+    RET
 ChangeNamePlayer2:  ; Change name player 2 yyyyyyyyyyyy to Player 2, 0
     LD IX, player2          ; LD adress of name Player 2
     LD (IX+0), 0x50         ; Put Ox50(P) in first octet
@@ -1000,16 +1056,15 @@ ShowWordifLostOrWin:
         CALL KEY                        ; Test if a key is pressed
         JR C,  endloopShowWordifLostOrWin                   ; Loop if key not pressed
         RET
-;ecranFin01:
-;    INCLUDE "../Data/endscreenLost.asm"
-finCode:
+ENDCODE4200:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;  DATA                                   ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ORG 6000h
+BEGINDATA6000:
 xWord:              db 0x0
 ; 0=black(0)(00), 1=yellow(3)(01), 2=blue(4)(10), 3=white(7)(11), 4=half light = false
-colors_title:       db 0x0, 0x3, 0x4, 0x7, 0x0
+colors_title:       db 0x0, 0x4, 0x7, 0x3, 0x0
 ; 0=black(0)(00), 7=white(7)(01), 6=cyan(6)(10), 2=green(2)(11), 4=half light = false
 colors_pre_game:    db 0x0, 0x7, 0x6, 0x2, 0x0
 colors_games:       db 0x0, 0x4, 0x7, 0x2, 0x0
@@ -1108,14 +1163,17 @@ debugchr1:              db 8, 8, 3, 1, 1
 debugchr2:              db 8, 8, 3, 8, 8
 randData:               db 100
 
+EXOMIZER:
+    INCBIN "../Bin/DEEXOM_FD00.BIN"
+FINEXOMIZER:
+
 ecranFin02:
-     INCLUDE "../Data/endscreenLost.asm"
+    INCLUDE "../Data/endscreenLost.asm"
+    ;INCBIN "../Data/ecran-jeu-hector-fin-v00.exo"
 splashScreen:
-    INCLUDE "../Data/splashscreen.asm"
-    ;INCBIN "../Data/ecran-jeu-hector-V02.exo"
-finORG6000:
-    ;INCBIN "../Data/ecran-jeu-hector-V02.exo"
-;ORG 800h
-;ecranFin01:
-;     INCLUDE "../Data/endscreenWin.asm"
-;finORG1000:
+    ;INCLUDE "../Data/splashscreen.asm"
+    INCBIN "../Data/ecran-jeu-hector-V02.exo"
+ecranFin01:
+    INCLUDE "../Data/endscreenWin.asm"
+    ;INCBIN "../Data/ecran-jeu-hector-fin-solo_v00.bmp.exo"
+ENDDATA6000:
